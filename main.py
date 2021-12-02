@@ -1,42 +1,66 @@
 import logging
 from telegram.ext import Updater, CommandHandler, MessageHandler, Filters
 import settings
-import platform
+from random import randint, choice
+from glob import glob
+from emoji import emojize
 
+
+
+def get_smile(user_data):
+    if 'emoji' not in user_data:
+        smile = choice(settings.USER_EMOJI)
+        return emojize(smile, use_aliases=True)
+    return user_data['emoji']
 
 def greet_user(update, context):
+    context.user_data['emoji'] = get_smile(context.user_data)
     print('Вызван /start')
     update.message.reply_text("Привет, {}! Ты вызвал команду /start".format(update.message.from_user["username"]))
-    update.message.reply_text("ты можешь со мной поболтать, либо узнать данные с датчика")
-    update.message.reply_text("для этого используй команду /temp")
+    update.message.reply_text(f"ты можешь со мной поболтать {context.user_data['emoji']}!")
     logging.info("connect username: {}".format(update.message.from_user["username"]))
     print("connect username: {}".format(update.message.from_user["username"]))
 
-def talk_to_me(update, context):
-    user_text = update.message.text
-    print(user_text)
-    update.message.reply_text(user_text)
-
-def get_temperature(update, context):
-    if platform.node() != 'raspberrypi':
-        logging.warning("Бот запущен не на raspberry pi")
-        update.message.reply_text("Бот запущен не на rasbperrypi")
+def play_random_numbers(user_number):
+    bot_number =  randint(user_number - 10, user_number+10)
+    if user_number > bot_number:
+        message = f"Ты загадал {user_number}, я загадал {bot_number}, ты выиграл!"
+    elif user_number == bot_number:
+        message = f"Ты загадал {user_number}, я загадал {bot_number}, ничья!"
     else:
-        humidity, temperature = Adafruit_DHT.read_retry(settings.DHT_TYPE, settings.DHT_PIN)
-        if humidity is not None and temperature is not None:
-            #print('Температура={0:0.1f}* Влажность={1:0.1f}%'.format(temperature,humidity))
-            update.message.reply_text('Температура={0:0.1f}* Влажность={1:0.1f}%'.format(temperature,humidity))
-        else:
-            logging.error('Ошибка получения данных с датчика DHT{0} на пине GPIO{1}'.format(settings.DHT_TYPE, settings.DHT_PIN))
-            update.message.reply_text("Ошибка получения данных с датчика DHT" + settings.DHT_TYPE)
+        message = f"Ты загадал {user_number}, я загадал {bot_number}, я выиграл!"
+    return message
 
+def guess_number(update, context):
+    if context.args:
+        try:
+            user_number = int(context.args[0])
+            message = play_random_numbers(user_number)
+        except (TypeError, ValueError):
+            message = "Введите целое число"
+    else:
+        message = "Введите целое число"
+    update.message.reply_text(message)
+
+def send_cat_picture(update, context):
+    cat_photos_list =  glob('images/cat*.jp*g')
+    cat_pic_filename = choice(cat_photos_list)
+    chat_id = update.effective_chat.id
+    context.bot.send_photo(chat_id=chat_id, photo=open(cat_pic_filename, 'rb'))
+
+def talk_to_me(update, context):
+    context.user_data['emoji'] = get_smile(context.user_data)
+    username = update.effective_user.first_name
+    text = update.message.text
+    update.message.reply_text(f"Здравствуй, {username} {context.user_data['emoji']}! Ты написал: {text}")
 
 def main():
     mybot = Updater(settings.API_KEY)
 
     dp = mybot.dispatcher
     dp.add_handler(CommandHandler("start", greet_user))
-    dp.add_handler(CommandHandler("temp", get_temperature))
+    dp.add_handler(CommandHandler("guess", guess_number))
+    dp.add_handler(CommandHandler("cat", send_cat_picture))
     dp.add_handler(MessageHandler(Filters.text, talk_to_me))
 
     logging.info("Бот стартовал")
