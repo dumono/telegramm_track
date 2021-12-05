@@ -1,64 +1,12 @@
 import logging
 from telegram.ext import Updater, CommandHandler, MessageHandler, Filters
-from telegram import ReplyKeyboardMarkup
+from telegram import ReplyKeyboardMarkup, KeyboardButton
 import settings
 from random import randint, choice
-from glob import glob
-from emoji import emojize
 import ephem
 from dateutil.parser import parse
+from handlers import greet_user,guess_number, talk_to_me, send_cat_picture, user_coordinates
 
-
-def get_smile(user_data):
-    if 'emoji' not in user_data:
-        smile = choice(settings.USER_EMOJI)
-        return emojize(smile, use_aliases=True)
-    return user_data['emoji']
-
-# приветствие /start
-def greet_user(update, context):
-    context.user_data['emoji'] = get_smile(context.user_data)
-    print('Вызван /start')
-    my_keyboard = ReplyKeyboardMarkup([['/cat']])
-    update.message.reply_text("Привет, {}! Ты вызвал команду /start".format(update.message.from_user["username"]))
-    update.message.reply_text(f"ты можешь со мной поболтать {context.user_data['emoji']}!", reply_markup=my_keyboard)
-    logging.info("connect username: {}".format(update.message.from_user["username"]))
-    print("connect username: {}".format(update.message.from_user["username"]))
-
-def play_random_numbers(user_number):
-    bot_number =  randint(user_number - 10, user_number+10)
-    if user_number > bot_number:
-        message = f"Ты загадал {user_number}, я загадал {bot_number}, ты выиграл!"
-    elif user_number == bot_number:
-        message = f"Ты загадал {user_number}, я загадал {bot_number}, ничья!"
-    else:
-        message = f"Ты загадал {user_number}, я загадал {bot_number}, я выиграл!"
-    return message
-
-# игра загадай число
-def guess_number(update, context):
-    if context.args:
-        try:
-            user_number = int(context.args[0])
-            message = play_random_numbers(user_number)
-        except (TypeError, ValueError):
-            message = "Введите целое число"
-    else:
-        message = "Введите целое число"
-    update.message.reply_text(message)
-
-def send_cat_picture(update, context):
-    cat_photos_list =  glob('images/cat*.jp*g')
-    cat_pic_filename = choice(cat_photos_list)
-    chat_id = update.effective_chat.id
-    context.bot.send_photo(chat_id=chat_id, photo=open(cat_pic_filename, 'rb'))
-
-#болтушка
-def talk_to_me(update, context):
-    context.user_data['emoji'] = get_smile(context.user_data)
-    username = update.effective_user.first_name
-    text = update.message.text
-    update.message.reply_text(f"Здравствуй, {username} {context.user_data['emoji']}! Ты написал: {text}")
 
 #счетчик слов в предложении
 def wordcount(update, context):
@@ -137,6 +85,8 @@ def main():
     dp.add_handler(CommandHandler("wordcount", wordcount))
     dp.add_handler(CommandHandler("next_full_moon", next_full_moon))
     dp.add_handler(CommandHandler("calc", calc_bot))
+    dp.add_handler(MessageHandler(Filters.regex('^(Прислать котика)$'), send_cat_picture))
+    dp.add_handler(MessageHandler(Filters.location, user_coordinates))
     dp.add_handler(MessageHandler(Filters.text, talk_to_me))
 
     logging.info("Бот стартовал")
