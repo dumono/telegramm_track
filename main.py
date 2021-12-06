@@ -1,12 +1,11 @@
 import logging
 from telegram.ext import Updater, CommandHandler, MessageHandler, Filters
-from telegram import ReplyKeyboardMarkup, KeyboardButton
 import settings
-from random import randint, choice
 import ephem
 from dateutil.parser import parse
 from handlers import greet_user,guess_number, talk_to_me, send_cat_picture, user_coordinates
 
+OPERATIONS = "+-*/"
 
 #счетчик слов в предложении
 def wordcount(update, context):
@@ -34,7 +33,7 @@ def next_full_moon(update, context):
         except(ValueError):
             update.message.reply_text("Вы ввели строку, не являющуюся датой")
 
-def calc(b, a = 0, math_operation="+"):
+def calc(a, b, math_operation):
     if math_operation == "+":
         return a + b
     elif math_operation == "-":
@@ -45,7 +44,7 @@ def calc(b, a = 0, math_operation="+"):
         if b == 0:
             return "Делить на 0 нельзя"
         else:
-            a / b
+            return a / b
 
 def is_number(number):
     try:
@@ -53,24 +52,53 @@ def is_number(number):
     except ValueError:
         return False
     return True
+
 def is_operation(operation):
-    operations = "+-*/"
-    if operation in operations:
+    if operation in OPERATIONS:
         return True
     else:
         return False
 
+#калькулятор в боте
 def calc_bot(update, context):
-    list_numbers = ['0']
+    list_numbers = []
     list_operations = ['+']
-    for n in range(len(context.args)):
-        a = str(context.args[n]).replace(" ","")
-        if is_number(a):
-            list_numbers.append(float(a))
-        elif is_operation(a):
-            list_operations.append(a)
-    print(list_numbers)
-    print(list_operations)
+    # рассматриваю пока два варианта - все пишется слитно или все пишется через пробел
+    if len(context.args) != 1:
+        #здесь просто - если через пробел - просто загоняем в нужные списки все аргументы
+        for n in range(len(context.args)):
+            a = str(context.args[n]).replace(" ","")
+            if is_number(a):
+                list_numbers.append(float(a))
+            elif is_operation(a):
+                list_operations.append(a)
+    else:
+        # во втором случае бьем строку через разделители
+        last_c = 0
+        arg = context.args[0]
+        for i in range(len(arg)):
+            if arg[i] in OPERATIONS:
+                list_numbers.append(float(arg[last_c:i]))
+                list_operations.append(arg[i])
+                last_c = i+1
+        last_arg = arg[last_c:len(arg)]
+        #я решил, что если не будет в конце второго операнда, то мы все равно посчитаем, но по правилам
+        #ну или как вариант выкинем пользователю предупреждение
+        # через ValueExeption специально не пошел, потому что можно вполне четко обойтись проверкой
+        if is_number(last_arg):
+            list_numbers.append(float(last_arg))
+        elif list_operations[len(list_operations)] == "+" or list_operations[len(list_operations)] =="-":
+            list_numbers.append(0)
+        else:
+            list_numbers.append(1)
+
+    b = 0
+    for index, operation in enumerate(list_operations):
+        b = calc(b, list_numbers[index], operation)
+        if not is_number(b):
+            break
+    update.message.reply_text(b)
+
 
 
 
